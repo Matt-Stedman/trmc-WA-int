@@ -1,3 +1,6 @@
+import asyncio
+import aiohttp
+
 import datetime
 import random
 
@@ -279,11 +282,22 @@ async def start_auto_messaging(update: Update, context: ContextTypes.DEFAULT_TYP
         hour=15, minute=25, tzinfo=pytz.timezone('GMT')), days=(0), chat_id=chat_id)
 # endregion
 
-if __name__ == "__main__":
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    app.add_handler(CommandHandler("auto", start_auto_messaging))
-    app.add_handler(CommandHandler("iworkedout", handle_iworkedout))
-    app.add_handler(MessageHandler(filters=filters.Caption(
-        ["iworkedout", "/iworkedout"]), callback=image_handler))
+async def main():
+    async with aiohttp.ClientSession() as session:
+        app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+        app.add_handler(CommandHandler("auto", start_auto_messaging))
+        app.add_handler(CommandHandler("iworkedout", handle_iworkedout))
+        app.add_handler(MessageHandler(filters=filters.Caption(
+            ["iworkedout", "/iworkedout"]), callback=image_handler))
 
-    app.run_polling(timeout=30)
+        app.run_polling(timeout=30)
+
+
+if __name__ == "__main__":
+    try:
+        loop = asyncio.get_event_loop()
+    except:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    loop.run_until_complete(main())
