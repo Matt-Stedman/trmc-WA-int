@@ -18,6 +18,7 @@ PHONE = '+447393186627'
 CHAT_INVITE_LINK = "https://t.me/+G0icZz4yCsJhYTRk"
 GROUP = -868831158
 
+asyncio.new_event_loop()
 
 # region SCHEDULED MESSAGES
 
