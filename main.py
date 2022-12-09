@@ -8,15 +8,17 @@ from telethon.sync import TelegramClient, events
 from pyairtable import Table
 from pyairtable.formulas import match
 import time
-import schedule
 import random
 import asyncio
 
+
+
 from datetime import datetime
-import multiprocessing
 import logging
 logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
                     level=logging.WARNING)
+
+start_time = time.time()
 
 # import os
 # airtable_api_key = os.environ["AIRTABLE_API_TOKEN"] use export for this soon!
@@ -29,16 +31,15 @@ CHAT_INVITE_LINK = "https://t.me/+G0icZz4yCsJhYTRk"
 GROUP = -868831158
 BOT_IS_FREE = True
 
+trigger_event = events.Raw()
+
 # creating a telegram session and assigning
 # it to a variable client
 client = TelegramClient('bot', TELEGRAM_API_ID, TELEGRAM_API_HASH).start(
     bot_token=TELEGRAM_BOT_TOKEN)
-client.connect()
 
 # region - SYNC PROCESSES
-
-
-def weekly_roundup() -> None:
+async def weekly_roundup() -> None:
     """Let's do the weekly round up.
 
     "Right guys, round up time! Let's see who's been kicking ass this week!
@@ -55,16 +56,18 @@ def weekly_roundup() -> None:
     global BOT_IS_FREE
     while not BOT_IS_FREE:
         print("fuck")
-        asyncio.sleep(1)
+        await asyncio.sleep(1)
 
     BOT_IS_FREE = False
     # sending message using telegram client
     print("started here")
     # entity = client.get_entity(CHAT_INVITE_LINK)
     if not client.is_connected():
-        client.connect()
-    
-    client.send_message(
+        print("Client is not connected..")
+        await client.connect()
+
+    print("Sending message")
+    await client.send_message(
         GROUP, "Right lads, Sunday round-up time 💪", parse_mode="html")
     print("then here")
     goals_table = Table(
@@ -94,18 +97,19 @@ def weekly_roundup() -> None:
             last_worked_out_on = each_goal["fields"]["Last_worked_out"]
             msg_construct += "💩\n\n"
             msg_construct += f"Mate, are you even trying? You've not worked out AT ALL this week 😡. You last worked out on {last_worked_out_on}."
-        client.send_message(GROUP, msg_construct, parse_mode="html")
+        await client.send_message(GROUP, msg_construct, parse_mode="html")
 
-    asyncio.sleep(3)
+    await asyncio.sleep(3)
     print("Done!")
     BOT_IS_FREE = True
 
 
-def reset_table_at_midnight():
+@client.on(trigger_event)
+async def reset_table_at_midnight():
     """Reset the count at midnight"""
     global BOT_IS_FREE
     while not BOT_IS_FREE:
-        asyncio.sleep(1)
+        await asyncio.sleep(1)
     BOT_IS_FREE = False
     goals_table = Table(
         AIRTABLE_API_KEY, 'appyvfZ8bqGlz2pkH', 'tbltjvyqmRyShiYXi')
@@ -119,6 +123,7 @@ def reset_table_at_midnight():
 # region - ASYNC PROCESSES
 
 
+@client.on(events.NewMessage(pattern="!iworkedout"))
 async def handle_iworkedout(event):
     """Handle the /iworkedout message to auto-update the Airtable and offer a note of encouragement."""
     print(f"Nice job {event}")
@@ -187,78 +192,51 @@ async def handle_iworkedout(event):
                 print("Cheery message sent!")
 
 
-@client.on(events.NewMessage)
-async def handle_messages(event):
-    """Wrapper that handles all messages in the chat, with only specific ones being listened for"""
-    print("Hello...")
-
-    global BOT_IS_FREE
-    while not BOT_IS_FREE:
-        print("fuck")
-        asyncio.sleep(1)
-
-    BOT_IS_FREE = False
-    await event.client.get_entity(event.from_id)
-    if "/iworkedout" in event.message.text or "/iworkedout" in event.message.message:
-        print("2")
-        await handle_iworkedout(event=event)
-
-    BOT_IS_FREE = True
-# endregion
-
-
-def schedule_runner():
-    """Just run the scheduler"""
-    while True:
-        schedule.run_pending()
-        print("chirp")
-        asyncio.sleep(10)  # wait one minute
-
-
 # def message_handler_runner():
 #     """Just run the message handler"""
 #     client.run_until_disconnected()
 
-def free_bot_every_ten_minutes():
+# @client.on(trigger_event)
+async def free_bot_every_ten_minutes():
     """ Just in case our bot has been trapped in an infinite loop somewhere"""
     global BOT_IS_FREE
     BOT_IS_FREE = True
 
 
-def main() -> None:
-    # connecting and building the session
+async def periodic_f(interval, periodic_function):
+    while True:
+        print(round(time.time() - start_time, 1), "Starting periodic function")
+        await asyncio.gather(
+            await asyncio.sleep(interval),
+            await periodic_function(),
+        )
+
+
+async def main() -> None:
 
     # in case of script ran first time it will
     # ask either to input token or otp sent to
     # number or sent or your telegram id
-    if not client.is_user_authorized():
+    if not await client.is_user_authorized():
 
-        client.send_code_request(PHONE)
+        await client.send_code_request(PHONE)
 
         # signing in the client
-        client.sign_in(PHONE, input('Enter the code: '))
+        await client.sign_in(PHONE, input('Enter the code: '))
 
     # Run the scheduled events in a process
-    schedule.every(1).minutes.do(weekly_roundup)
-    schedule.every().day.at("00:01").do(reset_table_at_midnight)
-    schedule.every(10).minutes.do(free_bot_every_ten_minutes)
-    multiprocessing.Process(target=schedule_runner).start()
 
-    # Run the auto-responses in a seperate process
-    client.run_until_disconnected()
     while True:
-        global BOT_IS_FREE
-        while not BOT_IS_FREE:
-            print("fuck")
-            asyncio.sleep(1)
-        
-        if not client.is_connected():
-            client.run_until_disconnected()
-            print("Disconnected, let's reconnect")
+        f1 = loop.create_task(periodic_f(5, __call__(trigger_event)))
+        f2 = loop.create_task(client.run_until_disconnected())
+        await asyncio.wait([f1, f2]) #, f3])
 
     # disconnecting the telegram session
     client.disconnect()
 
 
 if __name__ == "__main__":
-    main()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(main())
+    loop.close()
