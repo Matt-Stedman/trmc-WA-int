@@ -284,12 +284,14 @@ async def start_auto_messaging(update: Update, context: ContextTypes.DEFAULT_TYP
 async def main() -> None:
     """Main loop ;)"""
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    await app.add_handler(CommandHandler("auto", start_auto_messaging))
-    await app.add_handler(CommandHandler("iworkedout", handle_iworkedout))
-    await app.add_handler(MessageHandler(filters=filters.Caption(
+    app.add_handler(CommandHandler("auto", start_auto_messaging))
+    app.add_handler(CommandHandler("iworkedout", handle_iworkedout))
+    app.add_handler(MessageHandler(filters=filters.Caption(
         ["iworkedout", "/iworkedout"]), callback=image_handler))
 
-    await app.run_polling(timeout=30)
+    app.run_polling(timeout=30)
+    while True:
+        asyncio.sleep(1)
 
 asyncio.run(main())
     
