@@ -281,16 +281,17 @@ async def start_auto_messaging(update: Update, context: ContextTypes.DEFAULT_TYP
 # endregion
 
 
-async def main() -> None:
+def main() -> None:
     """Main loop ;)"""
-    async with aiohttp.ClientSession() as session:
-        app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-        app.add_handler(CommandHandler("auto", start_auto_messaging))
-        app.add_handler(CommandHandler("iworkedout", handle_iworkedout))
-        app.add_handler(MessageHandler(filters=filters.Caption(
-            ["iworkedout", "/iworkedout"]), callback=image_handler))
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    app.add_handler(CommandHandler("auto", start_auto_messaging))
+    app.add_handler(CommandHandler("iworkedout", handle_iworkedout))
+    app.add_handler(MessageHandler(filters=filters.Caption(
+        ["iworkedout", "/iworkedout"]), callback=image_handler))
 
-        app.run_polling(timeout=30)
+    app.run_polling(timeout=30)
+    while True:
+        asyncio.sleep(1)
 
 
 if __name__ == '__main__':
