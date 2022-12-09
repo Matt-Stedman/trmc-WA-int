@@ -1,13 +1,13 @@
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Updater, filters, MessageHandler
-
-from pyairtable import Table
-from pyairtable.utils import attachment
-from pyairtable.formulas import match
-import time
-import random
 import datetime
+import random
+
 import pytz
+from pyairtable import Table
+from pyairtable.formulas import match
+from pyairtable.utils import attachment
+from telegram import Update
+from telegram.ext import (ApplicationBuilder, CommandHandler, ContextTypes,
+                          MessageHandler, filters)
 
 AIRTABLE_API_KEY = "patiXB5YDfZ31eYYV.8f40ce718cf811562c2d1e6092f157b0a54ec6b610e1d546464544bf44503cc7"
 TELEGRAM_BOT_TOKEN = "5678841436:AAEAOFewQu34NftfyK_9xxf5zDnzrPquD6k"
@@ -16,16 +16,9 @@ TELEGRAM_API_HASH = 'b1f4fc0783c9037c45cd2006647ea606'
 PHONE = '+447393186627'
 CHAT_INVITE_LINK = "https://t.me/+G0icZz4yCsJhYTRk"
 GROUP = -868831158
-BOT_IS_FREE = True
+
 
 # region SCHEDULED MESSAGES
-
-
-async def callback_auto_message(context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_message(chat_id=GROUP, text='Automatic message!')
-
-# endregion
-
 
 async def weekly_roundup(context: ContextTypes.DEFAULT_TYPE):
     """Let's do the weekly round up.
@@ -176,8 +169,10 @@ async def evening_reminder(context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=GROUP, text=msg_construct)
     print("Done!")
 
+# endregion
 
 # region RESPONSIVE MESSAGES
+
 
 async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print("Media recieved..")
