@@ -284,7 +284,7 @@ if __name__ == "__main__":
     try:
         loop = asyncio.get_event_loop()
     except Exception as e:
-        loop = asyncio.loop()
+        loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(CommandHandler("auto", start_auto_messaging))
