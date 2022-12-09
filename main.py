@@ -152,7 +152,7 @@ async def evening_reminder(context: ContextTypes.DEFAULT_TYPE):
             whose_not_worked_out.append(each_goal["fields"]["Person_name"][0])
 
     msg_construct = random.choice(
-        ["Evening lads, ", "Hey guys 🤩, ", "Yo fuckers, ", "Sup peepz, "])
+        ["Evening lads", "Hey guys 🤩", "Yo fuckers", "Sup peepz"])
     if len(whose_not_worked_out) == 0:
         msg_construct += "looks like everyone's already worked out today. Coolio."
     elif len(whose_not_worked_out) == len(each_goal):
@@ -269,13 +269,14 @@ async def handle_iworkedout(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def start_auto_messaging(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Set up the scheduled message collection"""
+    print("We've started the autoservice")
     chat_id = update.message.chat_id
-    context.job_queue.run_daily(morning_reminder, time=datetime.time(
-        hour=8, minute=0, tzinfo=pytz.timezone('GMT')), days=(0, 1, 2, 3, 4, 5, 6), chat_id=chat_id)
-    context.job_queue.run_daily(evening_reminder, time=datetime.time(
-        hour=19, minute=0, tzinfo=pytz.timezone('GMT')), days=(0, 1, 2, 3, 4, 5, 6), chat_id=chat_id)
-    context.job_queue.run_daily(weekly_roundup, time=datetime.time(
-        hour=15, minute=25, tzinfo=pytz.timezone('GMT')), days=(0), chat_id=chat_id)
+    context.job_queue.run_repeating(morning_reminder, first=datetime.time(
+        hour=7, minute=0, tzinfo=pytz.timezone('GMT')), interval=datetime.timedelta(1), chat_id=chat_id)
+    context.job_queue.run_repeating(evening_reminder, first=datetime.time(
+        hour=18, minute=30, tzinfo=pytz.timezone('GMT')), interval=datetime.timedelta(1), chat_id=chat_id)
+    context.job_queue.run_repeating(weekly_roundup, first=datetime.time(
+        hour=15, minute=25, tzinfo=pytz.timezone('GMT')), interval=datetime.timedelta(7), chat_id=chat_id)
 # endregion
 
 
