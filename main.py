@@ -296,7 +296,7 @@ async def main():
 if __name__ == "__main__":
     try:
         loop = asyncio.get_event_loop()
-    except:
+    except Exception as e:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
