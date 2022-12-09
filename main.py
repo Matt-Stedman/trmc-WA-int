@@ -280,7 +280,9 @@ async def start_auto_messaging(update: Update, context: ContextTypes.DEFAULT_TYP
         hour=15, minute=25, tzinfo=pytz.timezone('GMT')), days=(0), chat_id=chat_id)
 # endregion
 
+
 async def main() -> None:
+    """Main loop ;)"""
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     await app.add_handler(CommandHandler("auto", start_auto_messaging))
     await app.add_handler(CommandHandler("iworkedout", handle_iworkedout))
@@ -289,6 +291,5 @@ async def main() -> None:
 
     await app.run_polling(timeout=30)
 
-test = st.empty()
-asyncio.run(main(st))
+asyncio.run(main())
     
