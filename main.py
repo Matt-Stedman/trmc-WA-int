@@ -291,7 +291,7 @@ async def main() -> None:
 
     app.run_polling(timeout=30)
     while True:
-        asyncio.sleep(1)
+        await asyncio.sleep(1)
 
 asyncio.run(main())
     
