@@ -18,8 +18,6 @@ PHONE = '+447393186627'
 CHAT_INVITE_LINK = "https://t.me/+G0icZz4yCsJhYTRk"
 GROUP = -868831158
 
-asyncio.new_event_loop()
-
 # region SCHEDULED MESSAGES
 
 async def weekly_roundup(context: ContextTypes.DEFAULT_TYPE):
@@ -297,4 +295,6 @@ def main() -> None:
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
+    print("Cheese!")
+    asyncio.set_event_loop(loop)
     loop.run_until_complete(main())
