@@ -1,27 +1,14 @@
-#!/usr/bin/env python
-# pylint: disable=unused-argument, wrong-import-position
-# This program is dedicated to the public domain under the CC0 license.
-
-# importing all required libraries
-from telethon.sync import TelegramClient, events
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, Updater, filters, MessageHandler
 
 from pyairtable import Table
+from pyairtable.utils import attachment
 from pyairtable.formulas import match
 import time
 import random
-import asyncio
+import datetime
+import pytz
 
-
-
-from datetime import datetime
-import logging
-logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s',
-                    level=logging.WARNING)
-
-start_time = time.time()
-
-# import os
-# airtable_api_key = os.environ["AIRTABLE_API_TOKEN"] use export for this soon!
 AIRTABLE_API_KEY = "patiXB5YDfZ31eYYV.8f40ce718cf811562c2d1e6092f157b0a54ec6b610e1d546464544bf44503cc7"
 TELEGRAM_BOT_TOKEN = "5678841436:AAEAOFewQu34NftfyK_9xxf5zDnzrPquD6k"
 TELEGRAM_API_ID = '21634871'
@@ -31,15 +18,16 @@ CHAT_INVITE_LINK = "https://t.me/+G0icZz4yCsJhYTRk"
 GROUP = -868831158
 BOT_IS_FREE = True
 
-trigger_event = events.Raw()
+# region SCHEDULED MESSAGES
 
-# creating a telegram session and assigning
-# it to a variable client
-client = TelegramClient('bot', TELEGRAM_API_ID, TELEGRAM_API_HASH).start(
-    bot_token=TELEGRAM_BOT_TOKEN)
 
-# region - SYNC PROCESSES
-async def weekly_roundup() -> None:
+async def callback_auto_message(context: ContextTypes.DEFAULT_TYPE):
+    await context.bot.send_message(chat_id=GROUP, text='Automatic message!')
+
+# endregion
+
+
+async def weekly_roundup(context: ContextTypes.DEFAULT_TYPE):
     """Let's do the weekly round up.
 
     "Right guys, round up time! Let's see who's been kicking ass this week!
@@ -53,23 +41,12 @@ async def weekly_roundup() -> None:
     "
     then wipe the tally to round off the week.
     """
-    global BOT_IS_FREE
-    while not BOT_IS_FREE:
-        print("fuck")
-        await asyncio.sleep(1)
 
-    BOT_IS_FREE = False
     # sending message using telegram client
-    print("started here")
-    # entity = client.get_entity(CHAT_INVITE_LINK)
-    if not client.is_connected():
-        print("Client is not connected..")
-        await client.connect()
+    print("Sending weekly roundup...")
+    await context.bot.send_message(
+        chat_id=GROUP, text="Right lads, Sunday round-up time 💪")
 
-    print("Sending message")
-    await client.send_message(
-        GROUP, "Right lads, Sunday round-up time 💪", parse_mode="html")
-    print("then here")
     goals_table = Table(
         AIRTABLE_API_KEY, 'appyvfZ8bqGlz2pkH', 'tbltjvyqmRyShiYXi')
     print(goals_table)
@@ -97,64 +74,163 @@ async def weekly_roundup() -> None:
             last_worked_out_on = each_goal["fields"]["Last_worked_out"]
             msg_construct += "💩\n\n"
             msg_construct += f"Mate, are you even trying? You've not worked out AT ALL this week 😡. You last worked out on {last_worked_out_on}."
-        await client.send_message(GROUP, msg_construct, parse_mode="html")
+        await context.bot.send_message(chat_id=GROUP, text=msg_construct)
 
-    await asyncio.sleep(3)
     print("Done!")
-    BOT_IS_FREE = True
 
 
-@client.on(trigger_event)
-async def reset_table_at_midnight():
-    """Reset the count at midnight"""
-    global BOT_IS_FREE
-    while not BOT_IS_FREE:
-        await asyncio.sleep(1)
-    BOT_IS_FREE = False
+async def morning_reminder(context: ContextTypes.DEFAULT_TYPE):
+    """Let's do a morning reminder for everyone to workout."""
+
     goals_table = Table(
         AIRTABLE_API_KEY, 'appyvfZ8bqGlz2pkH', 'tbltjvyqmRyShiYXi')
-    for each_goal in goals_table.iterate():
-        goals_table.update(each_goal, {"Worked_out_today": False})
-    BOT_IS_FREE = True
+    people_table = Table(
+        AIRTABLE_API_KEY, 'appyvfZ8bqGlz2pkH', 'tblyGN4myp1IkGjhS')
+    print(goals_table)
+    now_time = datetime.datetime.now()
+
+    whose_not_worked_out = []
+    for each_goal in goals_table.all():
+        if "Last_worked_out" in each_goal["fields"].keys():
+            last_worked_out_on = each_goal["fields"]["Last_worked_out"]
+            last_worked_out_on = datetime.datetime.strptime(
+                last_worked_out_on, "%Y-%m-%dT%H:%M:%S.000Z").date()
+            print("Last worked out on: ", last_worked_out_on)
+            print("Now date is: ", now_time.date())
+            if last_worked_out_on < now_time.date():
+                worked_out_today = False
+            else:
+                worked_out_today = True
+        else:
+            worked_out_today = False
+
+        if not worked_out_today:
+            # get their telegram info
+            # TODO wrap in a TRY/EXCEPT
+            whose_not_worked_out.append(each_goal["fields"]["Person_name"][0])
+
+    msg_construct = random.choice(
+        ["Morning lads, ", "Hey guys 🤩, ", "Rise and shine fuckers, ", "Sup peepz, "])
+    if len(whose_not_worked_out) == 0:
+        msg_construct += "looks like everyone's already worked out today. Coolio."
+    elif len(whose_not_worked_out) == len(each_goal):
+        msg_construct += "don't forget to workout today if it's on your todo list 😉."
+    else:
+        for i, each in enumerate(whose_not_worked_out):
+            print(whose_not_worked_out)
+            if i == len(whose_not_worked_out) - 1:
+                msg_construct += " and "
+            elif i != 0:
+                msg_construct += ", "
+            msg_construct += each
+        msg_construct += " all need to work out. Don't forget 💪"
+    await context.bot.send_message(chat_id=GROUP, text=msg_construct)
+    print("Done!")
 
 
-# endregion
+async def evening_reminder(context: ContextTypes.DEFAULT_TYPE):
+    """Let's do an evening reminder for everyone to workout."""
 
-# region - ASYNC PROCESSES
+    goals_table = Table(
+        AIRTABLE_API_KEY, 'appyvfZ8bqGlz2pkH', 'tbltjvyqmRyShiYXi')
+    people_table = Table(
+        AIRTABLE_API_KEY, 'appyvfZ8bqGlz2pkH', 'tblyGN4myp1IkGjhS')
+    print(goals_table)
+
+    now_time = datetime.datetime.now()
+
+    whose_not_worked_out = []
+    for each_goal in goals_table.all():
+        if "Last_worked_out" in each_goal["fields"].keys():
+            last_worked_out_on = each_goal["fields"]["Last_worked_out"]
+            last_worked_out_on = datetime.datetime.strptime(
+                last_worked_out_on, "%Y-%m-%dT%H:%M:%S.000Z").date()
+            print("Last worked out on: ", last_worked_out_on)
+            print("Now date is: ", now_time.date())
+            if last_worked_out_on < now_time.date():
+                worked_out_today = False
+            else:
+                worked_out_today = True
+        else:
+            worked_out_today = False
+
+        if not worked_out_today:
+            # get their telegram info
+            # TODO wrap in a TRY/EXCEPT
+            whose_not_worked_out.append(each_goal["fields"]["Person_name"][0])
+
+    msg_construct = random.choice(
+        ["Evening lads, ", "Hey guys 🤩, ", "Yo fuckers, ", "Sup peepz, "])
+    if len(whose_not_worked_out) == 0:
+        msg_construct += "looks like everyone's already worked out today. Coolio."
+    elif len(whose_not_worked_out) == len(each_goal):
+        msg_construct += "don't forget to workout today if it's on your todo list 😉."
+    else:
+        for i, each in enumerate(whose_not_worked_out):
+            if i == len(whose_not_worked_out) - 1:
+                msg_construct += " and "
+            else:
+                msg_construct += ", "
+            msg_construct += each
+        msg_construct += " all need to work out. Don't forget 💪"
+    await context.bot.send_message(chat_id=GROUP, text=msg_construct)
+    print("Done!")
 
 
-@client.on(events.NewMessage(pattern="!iworkedout"))
-async def handle_iworkedout(event):
+# region RESPONSIVE MESSAGES
+
+async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("Media recieved..")
+    should_process_goal = await handle_iworkedout(update, context)
+    if should_process_goal is not None:
+        print("nice")
+        if update.message.photo is not None or len(update.message.photo) is not None:
+            file = update.message.photo[-1].file_id
+            obj = await context.bot.get_file(file)
+            goals_table = Table(
+                AIRTABLE_API_KEY, 'appyvfZ8bqGlz2pkH', 'tbltjvyqmRyShiYXi')
+            print(should_process_goal)
+
+            record = goals_table.get(record_id=should_process_goal)
+            if "Proofs" in record["fields"]:
+                current_attachments = record["fields"]["Proofs"]
+            else:
+                current_attachments = []
+
+            current_attachments.append(attachment(obj.file_path))
+            update_details = {"Proofs": current_attachments}
+            goals_table.update(should_process_goal, update_details)
+
+            await update.message.reply_text("I've also uploaded this to the database.. 😉")
+    print("Media processed if possible")
+
+
+async def handle_iworkedout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     """Handle the /iworkedout message to auto-update the Airtable and offer a note of encouragement."""
-    print(f"Nice job {event}")
-    from_user = await event.get_sender()
-    print(f"Nice job {from_user.username}")
-    from_username = from_user.username
+    print(f"{update.effective_user.username} has just worked out!")
+    from_username = update.effective_user.username
 
     people_table = Table(
         AIRTABLE_API_KEY, 'appyvfZ8bqGlz2pkH', 'tblyGN4myp1IkGjhS')
     goals_table = Table(
         AIRTABLE_API_KEY, 'appyvfZ8bqGlz2pkH', 'tbltjvyqmRyShiYXi')
     nice_messages = ["Good job dude!", "Fucking smashing it, mate 💪",
-                     "Ohhhhhh momma!", "God you're so frekin' amazing!", "Fuck. Yes.", "Legend 😉"]
+                     "Ohhhhhh momma!", "God you're so frekin' amazing! 🤤", "Fuck. Yes.", "Legend 😉"]
 
     person = people_table.first(formula=match(
         {"Telegram_username": from_username}))
     print(person)
-    # a = [
-    #     {'id': 'rec7V5VWhBaRxlZlY', 'createdTime': '2022-12-04T16:54:17.000Z', 'fields': {'Name': 'Stephan', 'Phone_number': '+491729886765', 'Goals': ['rec8iblgcDRaqWMRf']}},
-    #     {'id': 'recOBIlKLBGGDsURB', 'createdTime': '2022-12-04T16:54:17.000Z', 'fields': {'Name': 'Josh', 'Phone_number': '+447310342171','Goals': ['recYzpaUVw4FjkIgJ'], 'Telegram_username': 'JuicyGoosie'}},
-    #     {'id': 'rechipCgfQ6GSCDYE', 'createdTime': '2022-12-04T16:54:17.000Z', 'fields': {'Name': 'Matt', 'Phone_number': '+447393186627', 'Goals': ['recPVqdmEKptAPUxV'], 'Telegram_username': 'Matt_Stedman'}}
-    #     ]
     if "Telegram_username" in person["fields"].keys():
         print(str(person["fields"]["Telegram_username"]))
         if str(from_username).replace("@", "") == str(person["fields"]["Telegram_username"]).replace("@", ""):
+
+            # Handle finding your goals
             goal = goals_table.first(formula=match(
                 {"Person_name": person["fields"]["Name"]}))
-            now_time = datetime.now()
+            now_time = datetime.datetime.now()
             if "Last_worked_out" in goal["fields"].keys():
                 last_worked_out_on = goal["fields"]["Last_worked_out"]
-                last_worked_out_on = datetime.strptime(
+                last_worked_out_on = datetime.datetime.strptime(
                     last_worked_out_on, "%Y-%m-%dT%H:%M:%S.000Z").date()
                 print("Last worked out on: ", last_worked_out_on)
                 print("Now date is: ", now_time.date())
@@ -164,10 +240,14 @@ async def handle_iworkedout(event):
                     worked_out_today = True
             else:
                 worked_out_today = False
+
+            # Handle table
             if worked_out_today:
-                await client.send_message(GROUP,  "You've already worked out today.", parse_mode="html")
+                await update.message.reply_text("You've already worked out today.")
+                print("They've already worked out")
+                return None
             else:
-                # Handle table
+
                 count_this_week = goal["fields"]["Count_this_week"]
                 update_details = {
                     "Last_worked_out": now_time.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
@@ -187,56 +267,28 @@ async def handle_iworkedout(event):
                 print("Sending cheery message")
 
                 # Handle "nice work bud" message
-                await client.send_message(GROUP,  random.choice(nice_messages), parse_mode="html")
+                await update.message.reply_text(random.choice(nice_messages))
 
                 print("Cheery message sent!")
+                return goal["id"]
 
 
-# def message_handler_runner():
-#     """Just run the message handler"""
-#     client.run_until_disconnected()
-
-# @client.on(trigger_event)
-async def free_bot_every_ten_minutes():
-    """ Just in case our bot has been trapped in an infinite loop somewhere"""
-    global BOT_IS_FREE
-    BOT_IS_FREE = True
-
-
-async def periodic_f(interval, periodic_function):
-    while True:
-        print(round(time.time() - start_time, 1), "Starting periodic function")
-        await asyncio.gather(
-            await asyncio.sleep(interval),
-            await periodic_function(),
-        )
-
-
-async def main() -> None:
-
-    # in case of script ran first time it will
-    # ask either to input token or otp sent to
-    # number or sent or your telegram id
-    if not await client.is_user_authorized():
-
-        await client.send_code_request(PHONE)
-
-        # signing in the client
-        await client.sign_in(PHONE, input('Enter the code: '))
-
-    # Run the scheduled events in a process
-
-    while True:
-        f1 = loop.create_task(periodic_f(5, __call__(trigger_event)))
-        f2 = loop.create_task(client.run_until_disconnected())
-        await asyncio.wait([f1, f2]) #, f3])
-
-    # disconnecting the telegram session
-    client.disconnect()
-
+async def start_auto_messaging(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Set up the scheduled message collection"""
+    chat_id = update.message.chat_id
+    context.job_queue.run_daily(morning_reminder, time=datetime.time(
+        hour=8, minute=0, tzinfo=pytz.timezone('GMT')), days=(0, 1, 2, 3, 4, 5, 6), chat_id=chat_id)
+    context.job_queue.run_daily(evening_reminder, time=datetime.time(
+        hour=19, minute=0, tzinfo=pytz.timezone('GMT')), days=(0, 1, 2, 3, 4, 5, 6), chat_id=chat_id)
+    context.job_queue.run_daily(weekly_roundup, time=datetime.time(
+        hour=15, minute=25, tzinfo=pytz.timezone('GMT')), days=(0), chat_id=chat_id)
+# endregion
 
 if __name__ == "__main__":
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(main())
-    loop.close()
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    app.add_handler(CommandHandler("auto", start_auto_messaging))
+    app.add_handler(CommandHandler("iworkedout", handle_iworkedout))
+    app.add_handler(MessageHandler(filters=filters.Caption(
+        ["iworkedout", "/iworkedout"]), callback=image_handler))
+
+    app.run_polling(timeout=30)
