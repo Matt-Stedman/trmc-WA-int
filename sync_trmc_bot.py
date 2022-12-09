@@ -7,8 +7,8 @@ from telethon.sync import TelegramClient, events
 
 from pyairtable import Table
 from pyairtable.formulas import match
-import apscheduler
 import time
+import schedule
 import random
 import asyncio
 
@@ -33,6 +33,65 @@ client = TelegramClient('session', TELEGRAM_API_ID, TELEGRAM_API_HASH)
 client.start()
 
 
+# region - SYNC PROCESSES
+def weekly_roundup() -> None:
+    """Let's do the weekly round up.
+
+    "Right guys, round up time! Let's see who's been kicking ass this week!
+    then, for each goal:
+    "Josh, your goal was X, and it looks like you're
+        [smashing it! Nice work!]
+        [getting there.... Let's push a bit if you have the time and energy!]
+        [fucking failing, dude. Pull your socks up and get out there!]
+    depending on progress (<20%, 50%, 100%).
+    You did Y workouts this week.
+    "
+    then wipe the tally to round off the week.
+    """
+
+    # sending message using telegram client
+    entity = client.get_entity(CHAT_INVITE_LINK)
+
+    client.send_message(
+        entity, "Right lads, Sunday round-up time 💪", parse_mode="html")
+    goals_table = Table(
+        AIRTABLE_API_KEY, 'appyvfZ8bqGlz2pkH', 'tbltjvyqmRyShiYXi')
+    print(goals_table)
+
+    for each_goal in goals_table.all():
+
+        goal_name = each_goal["fields"]["Goal"]
+        person = str(each_goal["fields"]["Person_name"][0])
+        amount_expected = each_goal["fields"]["Times_per_week"]
+        amount_performed = each_goal["fields"]["Count_this_week"]
+
+        msg_construct = f"{person}, your goal was \""
+        msg_construct += f"{goal_name} \"\n\n"
+        if amount_performed >= amount_expected:
+            msg_construct += f"You've SMASHED it this week with {amount_performed} / {amount_expected} performed 🔥."
+        elif amount_performed >= round(amount_expected / 2):
+            msg_construct += f"You're getting there this week with {amount_performed} / {amount_expected} so far. Try to get another session in today mate 😉."
+        elif amount_performed > 0:
+            msg_construct += f"You've fucked it mate. Get off your ass and stop making excuses. 💩 You only did {amount_expected} / {amount_performed} this week."
+        else:
+            last_worked_out_on = each_goal["fields"]["Last_worked_out"]
+            msg_construct += f"Mate, are you even trying? You've not worked out AT ALL this week 😡. You last worked out on {last_worked_out_on}."
+        client.send_message(entity, msg_construct, parse_mode="html")
+
+
+def reset_table_at_midnight():
+    """Reset the count at midnight"""
+    goals_table = Table(
+        AIRTABLE_API_KEY, 'appyvfZ8bqGlz2pkH', 'tbltjvyqmRyShiYXi')
+    for each_goal in goals_table.iterate():
+        goals_table.update(each_goal, {"Worked_out_today": False})
+
+
+# endregion
+
+# region - ASYNC PROCESSES
+
+
 async def handle_iworkedout(event):
     """Handle the /iworkedout message to auto-update the Airtable and offer a note of encouragement."""
     from_user = await event.client.get_entity(event.from_id)
@@ -54,7 +113,8 @@ async def handle_iworkedout(event):
             goal = goals_table.first(formula=match(
                 {"Person_name": person["fields"]["Name"]}))
             now_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S:000Z")
-            update_details = {"Worked_out_today": True, "Last_worked_out": now_time}
+            update_details = {"Worked_out_today": True,
+                              "Last_worked_out": now_time}
             print(goal["id"])
             print(update_details)
             goals_table.update(
@@ -81,6 +141,22 @@ async def handle_messages(event):
         print("2")
         await handle_iworkedout(event=event)
 
+# endregion
+
+
+def schedule_runner():
+    """Just run the scheduler"""
+    while True:
+        schedule.run_pending()
+        print("chirp")
+        time.sleep(60)  # wait one minute
+
+
+def message_handler_runner():
+    """Just run the message handler"""
+    client.run_until_disconnected()
+
+
 def main() -> None:
     # connecting and building the session
 
@@ -94,12 +170,17 @@ def main() -> None:
         # signing in the client
         client.sign_in(PHONE, input('Enter the code: '))
 
+    # Run the scheduled events in a process
+    schedule.every(10).seconds.do(weekly_roundup)
+    schedule.every().day.at("00:01").do(reset_table_at_midnight)
+    multiprocessing.Process(target=schedule_runner).start()
+
     # Run the auto-responses in a seperate process
-    client.run_until_disconnected()
+    multiprocessing.Process(target=message_handler_runner).start()
 
     # disconnecting the telegram session
     client.disconnect()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
